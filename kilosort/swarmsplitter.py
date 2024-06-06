@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit
 import math
 from kilosort.CCG import compute_CCG, CCG_metrics
+import diptest
 
 def count_elements(kk, iclust, my_clus, xtree):
     n1 = np.isin(iclust, my_clus[xtree[kk, 0]]).sum()
@@ -94,6 +95,23 @@ def split(Xd, xtree, tstat, iclust, my_clus, verbose = True, meta = None):
 
         criterion = 0
         score = np.NaN
+
+        MAX_SAMPLE_SIZE = 72000
+        xproj, score = check_split(Xd, kk, xtree, iclust, my_clus)
+        if xproj.shape[0] > MAX_SAMPLE_SIZE:
+            idx = np.random.choice(xproj.shape[0],MAX_SAMPLE_SIZE,replace=False)
+            xproj = xproj[idx]
+        # Compute the dip statistic and p-value.
+        _, pval = diptest.diptest(xproj)
+        if pval > 0.05:
+            criterion = 1
+        else:
+            criterion = -1
+            if meta is not None:
+                criterion = refractoriness(meta[ix1],meta[ix2])
+            if criterion < 1:
+                criterion = -1
+
         if criterion==0:
             # first mutation is global modularity
             if tstat[kk,0] < 0.2:
